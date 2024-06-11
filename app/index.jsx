@@ -13,11 +13,10 @@ import * as ImagePicker from "expo-image-picker";
 import axios from "axios";
 import { Feather } from "@expo/vector-icons";
 import defaultImage from "../assets/dog.jpg";
-import { Link } from "expo-router";
-import { labels } from "../constants";
+import { Link, router, useRootNavigationState } from "expo-router";
 import { observer, Reactive, useObservable } from "@legendapp/state/react";
 import { enableReactNativeComponents } from "@legendapp/state/config/enableReactNativeComponents";
-import { state } from "../context/state";
+import { state, getUser } from "../context/state";
 import mime from "mime";
 
 const DEFAULT_IMAGE = Image.resolveAssetSource(defaultImage).uri;
@@ -25,6 +24,7 @@ const DEFAULT_IMAGE = Image.resolveAssetSource(defaultImage).uri;
 export default observer(() => {
 	const [breed, setBreed] = useState("");
 	const [image, setImage] = useState(null);
+	const rootNavigationState = useRootNavigationState();
 
 	const img = useRef(null);
 
@@ -55,24 +55,39 @@ export default observer(() => {
 						headers: {
 							"Content-Type": "multipart/form-data",
 							Accept: "application/json",
+							Authorization: `Bearer ${state.user.get().token}`,
 						},
 					},
 				);
 
-				setBreed(labels[res.data.prediction].replace(/_/g, " "));
+				console.log(res.data);
+				setBreed(res.data.breed);
 			} catch (error) {
 				console.log("Error ", error);
 			}
 		}
 	};
 
+	const checkUser = async () => {
+		const user = await getUser();
+
+		if (!user) router.replace("/logIn");
+	};
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
 	useEffect(() => {
 		const photoUri = state.photoUri.get();
+		const user = state.user.get();
+
 		if (photoUri) {
 			sendCameraPhoto(photoUri);
 			state.photoUri.set("");
 		}
-	}, []);
+
+		if (!user.email && rootNavigationState?.key) {
+			checkUser();
+		}
+	}, [rootNavigationState]);
 
 	const sendCameraPhoto = async (cameraPhotoUri) => {
 		if (!cameraPhotoUri) {
@@ -91,17 +106,18 @@ export default observer(() => {
 
 		try {
 			const res = await axios.post(
-				"http://172.16.23.51:3000/model/upload",
+				"http://10.0.2.2:3000/model/upload",
 				bodyContent,
 				{
 					headers: {
 						"Content-Type": "multipart/form-data",
 						Accept: "application/json",
+						Authorization: `Bearer ${state.user.get().token}`,
 					},
 				},
 			);
 
-			setBreed(labels[res.data.prediction].replace(/_/g, " "));
+			setBreed(res.data.breed);
 		} catch (error) {
 			console.log("Error ", error);
 		}
